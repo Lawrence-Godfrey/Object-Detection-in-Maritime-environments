@@ -23,7 +23,7 @@ Clearly works better for moving background, however, the objects also need to be
 
 Code in [`MeanBackroundSubtraction.py`](MeanBackroundSubtraction.py)
 
-![alt-text](https://imgur.com/QP8jQFc.gif)
-![alt-text](https://imgur.com/QQL35Yn.gif)
+![alt-text](https://imgur.com/hujnY43.gif)
+![alt-text](https://imgur.com/sgn7KTt.gif)
 
 
