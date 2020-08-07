@@ -2,8 +2,8 @@
 
 code in [`BasicMotionDetection.py`](BasicMotionDetection.py)
 
-![alt-text](https://imgur.com/SxPqI3K)
-![alt-text](https://imgur.com/qkizkBx)
+![alt-text](https://imgur.com/SxPqI3K.gif)
+![alt-text](https://imgur.com/qkizkBx.gif)
 
 ---
 
@@ -12,8 +12,8 @@ Described in : "Zoran Zivkovic and Ferdinand van der Heijden. Efficient adaptive
 
 code in [`BackgroundSubtraction.py`](BackgroundSubtraction.py)
 
-![alt-text](https://imgur.com/SxPqI3K)
-![alt-text](https://imgur.com/rEtOy5C)
+![alt-text](https://imgur.com/SxPqI3K.gif)
+![alt-text](https://imgur.com/rEtOy5C.gif)
 
 ---
 
@@ -23,7 +23,7 @@ Clearly works better for moving background, however, the objects also need to be
 
 Code in [`MeanBackroundSubtraction.py`](MeanBackroundSubtraction.py)
 
-![alt-text](https://imgur.com/QP8jQFc)
-![alt-text](https://imgur.com/QQL35Yn)
+![alt-text](https://imgur.com/QP8jQFc.gif)
+![alt-text](https://imgur.com/QQL35Yn.gif)
 
 
