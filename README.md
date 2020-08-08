@@ -2,8 +2,8 @@
 
 code in [`FrameDifferencing.py`](FrameDifferencing.py)
 
-![alt-text](https://imgur.com/SxPqI3K.gif)
-![alt-text](https://imgur.com/qkizkBx.gif)
+![alt-text](https://imgur.com/X9Awmrz.gif)
+![alt-text](https://imgur.com/CmtLS5T.gif)
 
 ---
 
@@ -12,8 +12,8 @@ Described in : "Zoran Zivkovic and Ferdinand van der Heijden. Efficient adaptive
 
 code in [`BackgroundSubtraction.py`](BackgroundSubtraction.py)
 
-![alt-text](https://imgur.com/SxPqI3K.gif)
-![alt-text](https://imgur.com/rEtOy5C.gif)
+![alt-text](https://imgur.com/X9Awmrz.gif)
+![alt-text](https://imgur.com/H7WfHFT.gif)
 
 ---
 
@@ -23,8 +23,8 @@ Clearly works better for moving background, however, the objects also need to be
 
 Code in [`MeanBackgroundSubtraction.py`](MeanBackroundSubtraction.py)
 
-![alt-text](https://imgur.com/hujnY43.gif)
-![alt-text](https://imgur.com/sgn7KTt.gif)
+![alt-text](https://imgur.com/X9Awmrz.gif)
+![alt-text](https://imgur.com/QWscBo3.gif)
 
 
 ---
@@ -33,5 +33,5 @@ Code in [`MeanBackgroundSubtraction.py`](MeanBackroundSubtraction.py)
 
 Code in [`MedianBackgroundSubtraction.py`](MedianBackgroundSubtraction.py)
 
-![alt-text](https://imgur.com/myy74zS.gif)
-![alt-text](https://imgur.com/wyTRH1c.gif)
+![alt-text](https://imgur.com/X9Awmrz.gif)
+![alt-text](https://imgur.com/JaeVDTy.gif)
