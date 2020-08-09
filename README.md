@@ -66,7 +66,7 @@ You can see that it struggles to model both the water and the buildings in the s
 Code in [`RunningGaussianAverage.py`](RunningGaussianAverage.py)
 
 ![alt-text](https://imgur.com/GNsaPOe.gif)
-![alt-text](https://imgur.com/aqtr7GD)
+![alt-text](https://imgur.com/aqtr7GD.gif)
 
 --- 
 
@@ -81,6 +81,6 @@ This allows for multiple types of backgrounds to be modelled
 Code in [`BackgroundSubtraction.py`](BackgroundSubtraction.py)
 
 ![alt-text](https://imgur.com/GNsaPOe.gif)
-![alt-text](https://imgur.com/bzfYIf1)
+![alt-text](https://imgur.com/bzfYIf1.gif)
 
 --- 
