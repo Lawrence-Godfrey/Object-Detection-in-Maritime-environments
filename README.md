@@ -49,7 +49,7 @@ The background converges to an approximation of the actual background
 Code in [`MedianApproximationBackgroundSubtraction.py`](MedianApproximationBackgroundSubtraction.py)
 
 ![alt-text](https://imgur.com/GNsaPOe.gif)
-![alt-text](https://imgur.com/JaeVDTy.gif)
+![alt-text](https://imgur.com/umjIymd.gif)
 
 --- 
 
@@ -84,3 +84,4 @@ Code in [`BackgroundSubtraction.py`](BackgroundSubtraction.py)
 ![alt-text](https://imgur.com/bzfYIf1.gif)
 
 --- 
+
