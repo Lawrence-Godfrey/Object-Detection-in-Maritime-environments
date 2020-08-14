@@ -6,8 +6,8 @@ Since the line is based off of only the pixels at the edges of the frame, it wil
 
 Code can be found in [`OtsuHorizonDetection.py`](OtsuHorizonDetection.py)
 
-![alt-text](https://imgur.com/0XQ7gt9.gif)
-![alt-text](https://imgur.com/bboHtSc.gif)
+![alt-text](https://imgur.com/wYsIsUL.gif)
+![alt-text](https://imgur.com/09Gu1bD.gif)
 
 ---
 
@@ -20,7 +20,7 @@ While this does increase the accuracy, it requires a huge amount of computation 
 
 Code can be found in [`VarianceHorizonDetection.py`](VarianceHorizonDetection.py)
 
-![alt-text](https://imgur.com/0XQ7gt9.gif)
-![alt-text](https://imgur.com/Cb0wXEM.gif)
+![alt-text](https://imgur.com/wYsIsUL.gif)
+![alt-text](https://imgur.com/vGCqXZf.gif)
 
 ---
