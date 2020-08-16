@@ -24,3 +24,24 @@ Code can be found in [`VarianceHorizonDetection.py`](VarianceHorizonDetection.py
 ![alt-text](https://imgur.com/vGCqXZf.gif)
 
 ---
+
+### Horizon Detection using Hough Transform
+This method involves using an edge detector (Canny edge detector in this case) and then a Hough Transform to find all the lines in the image. 
+The longest line is then assumed to be the horizon
+
+This is a computationally efficient and fairly accurate method
+
+Code can be found in [`HoughHorizonDetection.py`](HoughHorizonDetection.py)
+
+![alt-text](https://imgur.com/wYsIsUL.gif)
+
+#### After Canny Edge Detection
+The Canny Edge detector is an improvement on the Sobel Edge detector. It takes in as an input the output of the Sobel operation, and returns a "simplified" version, where only the more important edges are preserved
+
+![alt-text](https://imgur.com/h3lHXNr.gif)
+
+#### After Hough Transform 
+The Hough Transform works by converting each point on each edge to the Hough Domain. Each point in the Hough Domain represents a line, therefore, each time a point on the same line is converted to the Hough Domain, it increments the same value. At the end, the values in the Hough Domain which are highest are chosen.
+
+![alt-text](https://imgur.com/FhxoTTt.gif)
+
