@@ -38,10 +38,10 @@ Code can be found in [`HoughHorizonDetection.py`](HoughHorizonDetection.py)
 #### After Canny Edge Detection
 The Canny Edge detector is an improvement on the Sobel Edge detector. It takes in as an input the output of the Sobel operation, and returns a "simplified" version, where only the more important edges are preserved
 
-![alt-text](https://imgur.com/h3lHXNr.gif)
+![alt-text](https://imgur.com/0aIzqxq.gif)
 
 #### After Hough Transform 
 The Hough Transform works by converting each point on each edge to the Hough Domain. Each point in the Hough Domain represents a line, therefore, each time a point on the same line is converted to the Hough Domain, it increments the same value. At the end, the values in the Hough Domain which are highest are chosen.
 
-![alt-text](https://imgur.com/FhxoTTt.gif)
+![alt-text](https://imgur.com/A08i7Jn.gif)
 
