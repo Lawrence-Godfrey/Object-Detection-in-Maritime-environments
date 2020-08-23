@@ -12,5 +12,5 @@ Which results in a validation IoU of 0.9786
 
 Applying the model to a different video from the same dataset results in the output shown below. 
 
-![alt-text](https://imgur.com/pA7ar32.gif)
-![alt-text](https://imgur.com/yvOKp0D.gif)
+![alt-text](https://imgur.com/FgH4dX6.gif)
+![alt-text](https://imgur.com/DUwv7Le.gif)
