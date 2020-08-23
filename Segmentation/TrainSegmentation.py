@@ -35,24 +35,24 @@ model.compile(
 model.summary()
 
 for filename in os.listdir(input_folder):
+
 	all_frames, all_masks = [], []
 
-
 	# read in files 
-	vid = cv2.VideoCapture(filename)
+	vid = cv2.VideoCapture(input_folder + filename)
 	mask_vid = cv2.VideoCapture(input_mask_folder + filename)
 
 	if not vid.isOpened():
-		sys.exit('Video File, ' + filename + ', couldn\'t be opened')
+		sys.exit('Video File, ' + input_folder + filename + ', couldn\'t be opened')
+	
+	if not mask_vid.isOpened():
+		sys.exit('Video File, ' + input_mask_folder + filename + ', couldn\'t be opened')
 
 	xSize = 320
 	ySize = 320
 
 	i=0
 	while vid.isOpened() and mask_vid.isOpened:
-		if i == 274:
-			print('finished')
-			break
 
 		available, frame = vid.read()
 		_, mask_frame = mask_vid.read()
@@ -94,9 +94,6 @@ for filename in os.listdir(input_folder):
 
 	# train_data = tf.data.Dataset.from_tensor_slices((x_train, y_train))
 	# test_data = tf.data.Dataset.from_tensor_slices((x_val, y_val))
-
-	print(x_train.shape, y_train.shape, x_val.shape, y_val.shape)
-
 
 	cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 													save_weights_only=True,
