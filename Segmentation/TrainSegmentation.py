@@ -10,36 +10,42 @@ import segmentation_models as sm
 
 parser = argparse.ArgumentParser(description='Train a segmentation model on a video dataset')
 
-# mut_group = parser.add_mutually_exclusive_group(required=True)
+parser.add_argument('--input_json_file', type=str, metavar='', default=None, help='The path to the json file containing the dataset file names')
 
-# folder_group = mut_group.add_argument_group('folder_group', 'options when selecting folder')
-# folder_group.add_argument('-i', '--Input_Video_folder',      type=str, metavar='',   default = "",    help='The path to the folder containing the videos to train on')
-# folder_group.add_argument('-m', '--Input_Mask_folder',       type=str, metavar='',   default = "",    help='The path to the folder containing the masked videos to train on')
-
-# json_group = mut_group.add_argument_group('json_group', 'options when selecting json')
-# json_group.add_argument('--input_json_file', type=str, metavar='',   default = "",    help='The path to the json file containing the dataset file names')
+parser.add_argument('-i', '--input_Video_folder',      type=str, metavar='', default=None, help='The path to the folder containing the videos to train on')
+parser.add_argument('-m', '--input_Mask_folder',       type=str, metavar='', default=None, help='The path to the folder containing the masked videos to train on')
 
 parser.add_argument('-c', '--Model_Checkpoint_Folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
 parser.add_argument('-b', '--Model_type',              type=str, metavar='',   default='vgg19', help='The model backbone. Default=vgg19')
-parser.add_argument('-s', '--show_video', 			   type=bool, metavar='',  default=True,   help='Whether or not to show the input and mask video while reading it in')
+parser.add_argument('-s', '--show_video', 			   type=bool, metavar='',  default=False,   help='Whether or not to show the input and mask video while reading it in')
 parser.add_argument('-p', '--percent_val',             type=float, metavar='', default = 0.2,    help='percentage of dataset to use as validation')
 
 args = parser.parse_args()
 
-# input_folder = args.Input_Video_folder
-# input_mask_folder = args.Input_Mask_folder
+if args.input_Video_folder is not None:
+	input_folder = args.input_Video_folder
+	input_mask_folder = args.input_Mask_folder
 
-checkpoint_path = '/home/lawrence/FYProject/SavedModels/vgg19_4_classes/' #args.Model_Checkpoint_Folder
+	all_input_filenames = [input_folder + filename for filename in os.listdir(input_folder)]
+	all_mask_filenames = [input_mask_folder + filename for filename in os.listdir(input_mask_folder)]
+	print(all_input_filenames)
+	print(all_mask_filenames)
 
-json_file = '/mnt/42F2C3CFF2C3C57F/Datasets/Datasets.json'
-with open(json_file) as file:
-	data = json.load(file)
+elif args.input_json_file is not None:
+	json_file = args.input_json_file
+	
+	with open(json_file) as file:
+		data = json.load(file)
 
-all_input_filenames = data['Videos']['SMD']
-all_mask_filenames = data['Masks']['SMD']
+	all_input_filenames = data['Videos']['SMD']
+	all_mask_filenames = data['Masks']['SMD']
 
-print(all_input_filenames)
-print(all_mask_filenames)
+else:
+	sys.exit("Either --input_json_file or --input_Video_folder required")
+
+
+checkpoint_path = args.Model_Checkpoint_Folder
+
 
 # Set up model
 num_classes = 4
@@ -55,12 +61,12 @@ model.compile(
     metrics=[sm.metrics.iou_score],
 )
 
-model.summary()
+# model.summary()
 
 all_frames, all_masks = [], []
 
 for filename, mask_filename in zip(all_input_filenames, all_mask_filenames):
-	print('Training on ' + filename)
+	print('Reading ' + filename)
 
 
 	# read in files 
@@ -136,15 +142,15 @@ np.random.set_state(rng_state)
 np.random.shuffle(all_masks)
 
 # split whole video into training and validation
-x_train, y_train,  = all_frames[0:num_train_examples], all_masks[0:num_train_examples]
-x_val,   y_val    =  all_frames[num_train_examples:],  all_masks[num_train_examples:]
+# x_train, y_train,  = all_frames[0:num_train_examples], all_masks[0:num_train_examples]
+# x_val,   y_val    =  all_frames[num_train_examples:],  all_masks[num_train_examples:]
 
 # reshape to make sure it's in the right format for tensorflow
-x_train, y_train, x_val, y_val = x_train.reshape((-1, xSize, ySize, 3)), y_train.reshape((-1, xSize, ySize, num_classes)), x_val.reshape((-1, xSize, ySize, 3)), y_val.reshape((-1, xSize, ySize, num_classes))
+# x_train, y_train, x_val, y_val = x_train.reshape((-1, xSize, ySize, 3)), y_train.reshape((-1, xSize, ySize, num_classes)), x_val.reshape((-1, xSize, ySize, 3)), y_val.reshape((-1, xSize, ySize, num_classes))
 
 # preprocess input
-x_train = preprocess_input(x_train)
-x_val   = preprocess_input(x_val)
+all_frames = preprocess_input(all_frames)
+all_masks   = preprocess_input(all_masks)
 
 
 
@@ -153,15 +159,33 @@ cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 												save_weights_only=True,
 												verbose=1)
 
-datagen = tf.keras.preprocessing.image.ImageDataGenerator(
-    rotation_range=20,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    horizontal_flip=True)
+
+
+# create two datagen instances with the same arguments
+data_gen_args = dict(   rotation_range=20,
+						width_shift_range=0.2,
+						height_shift_range=0.2,
+						horizontal_flip=True, 
+						validation_split=args.percent_val)
+
+image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
+mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
+
+seed = 1
+image_generator = image_datagen.flow(
+	all_frames,
+    seed=seed)
+	
+mask_generator = mask_datagen.flow(
+	all_masks, 
+    seed=seed)
+
+# combine generators into one which yields image and masks
+train_generator = zip(image_generator, mask_generator)
 
 model.fit(
-	datagen.flow(x_train, y_train, batch_size=16),
-	epochs=10,
-	validation_data=(x_val,y_val),
+    x=train_generator,
+    steps_per_epoch=2000,
+    epochs=50,
 	callbacks=[cp_callback] 
 )
