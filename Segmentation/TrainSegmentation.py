@@ -142,17 +142,14 @@ np.random.set_state(rng_state)
 np.random.shuffle(all_masks)
 
 # split whole video into training and validation
-# x_train, y_train,  = all_frames[0:num_train_examples], all_masks[0:num_train_examples]
-# x_val,   y_val    =  all_frames[num_train_examples:],  all_masks[num_train_examples:]
+x_train, y_train,  = all_frames[0:num_train_examples], all_masks[0:num_train_examples]
+x_val,   y_val    =  all_frames[num_train_examples:],  all_masks[num_train_examples:]
 
 # reshape to make sure it's in the right format for tensorflow
 # x_train, y_train, x_val, y_val = x_train.reshape((-1, xSize, ySize, 3)), y_train.reshape((-1, xSize, ySize, num_classes)), x_val.reshape((-1, xSize, ySize, 3)), y_val.reshape((-1, xSize, ySize, num_classes))
 
 # preprocess input
 all_frames = preprocess_input(all_frames)
-all_masks   = preprocess_input(all_masks)
-
-
 
 # save checkpoints while training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
@@ -168,24 +165,54 @@ data_gen_args = dict(   rotation_range=20,
 						horizontal_flip=True, 
 						validation_split=args.percent_val)
 
+x_train = preprocess_input(x_train)
+x_val   = preprocess_input(x_val)
+
+
+
+# save checkpoints while training
+cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
+												 save_weights_only=True,
+												 verbose=1)
+
+
+
+# create two datagen instances with the same arguments
+data_gen_args = dict()  # rotation_range=20,
+						# width_shift_range=0.2,
+						# height_shift_range=0.2,
+						# horizontal_flip=True, 
+						# validation_split=args.percent_val)
+
 image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
 mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
 
 seed = 1
-image_generator = image_datagen.flow(
-	all_frames,
+train_X_generator = image_datagen.flow(
+	x_train,
     seed=seed)
 	
-mask_generator = mask_datagen.flow(
-	all_masks, 
+train_Y_generator = mask_datagen.flow(
+	y_train, 
+    seed=seed)
+
+val_X_generator = image_datagen.flow(
+	x_val,
+    seed=seed)
+
+val_Y_generator = mask_datagen.flow(
+	y_val, 
     seed=seed)
 
 # combine generators into one which yields image and masks
-train_generator = zip(image_generator, mask_generator)
+train_generator = zip(train_X_generator, train_Y_generator)
+validation_generator = zip(val_X_generator, val_Y_generator)
 
 model.fit(
     x=train_generator,
-    steps_per_epoch=2000,
+	validation_data=validation_generator,
+	validation_steps=50,
+    steps_per_epoch=1000,
     epochs=50,
 	callbacks=[cp_callback] 
 )
