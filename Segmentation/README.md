@@ -31,5 +31,5 @@ Below is an example of the input video and corresponding mask:
 ### Multi-Class Segmentation 
 Below is the prediction of the segmentation model trained on three vides from the Singapore Maritime Dataset. 
 
-![alt-text](https://imgur.com/4iEQi8m.gif)
+![alt-text](https://imgur.com/Xk43Cyd.gif)
 ![alt-text](https://imgur.com/6MKg1Lz.gif)
