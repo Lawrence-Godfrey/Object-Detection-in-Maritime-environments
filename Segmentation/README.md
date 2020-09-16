@@ -15,6 +15,7 @@ Applying the model to a different video from the same dataset results in the out
 ![alt-text](https://imgur.com/uEh7f1l.gif)
 ![alt-text](https://imgur.com/saZPeYE.gif)
 
+---
 
 ## Making Custom Masks for Training
 In order to train the segmentation model with multiple classes I needed to create custom maskes which track objects in the video
@@ -25,3 +26,9 @@ Below is an example of the input video and corresponding mask:
 ![alt-text](https://imgur.com/Xwwb5k5.gif)
 ![alt-text](https://imgur.com/ha89aAs.gif)
 
+---
+
+# Multi-Class Segmentation 
+Below is the prediction of the segmentation model trained on three vides from the Singapore Maritime Dataset. 
+
+![alt-text](https://imgur.com/ydPcZpf.gif)
