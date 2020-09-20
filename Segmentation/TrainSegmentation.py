@@ -4,15 +4,12 @@ import numpy as np
 import sys
 import argparse
 import os
-import json
 from tqdm import tqdm 
 
 import tensorflow as tf
 import segmentation_models as sm
+import pickle
 
-#TODO Allow for test video folder input 
-#TODO Save history as .pickle
-#TODO More augmentation
 #TODO Automatic end when plateau
 #TODO Try with grayscale input
 #TODO Save linux image
@@ -25,7 +22,7 @@ parser.add_argument('-m', '--input_mask_folders',       type=str, metavar='', na
 parser.add_argument('-t', '--input_test_video_folders', type=str, metavar='', nargs='+', required=True, help='The path to the folder containing the videos to test on')
 parser.add_argument('-y', '--input_test_mask_folders',  type=str, metavar='', nargs='+', required=True, help='The path to the folder containing the masked videos to test on')
 
-parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='vgg19', help='The model backbone. Default=vgg19')
+parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='resnet18', help='The model backbone')
 parser.add_argument('-c', '--model_checkpoint_folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
 parser.add_argument('-s', '--show_video', 			   action='store_true', help='Whether or not to show the input and mask video while reading it in')
 
@@ -43,17 +40,23 @@ training_files, training_mask_files = [],[]
 test_files, test_mask_files = [],[]
 
 for folder, mask_folder in zip(training_folders, training_mask_folders):
-	for filename in os.listdir(folder):
+	for filename in sorted(os.listdir(folder)):
 		training_files.append(folder + filename) 
 
-	for filename in os.listdir(mask_folder):
+	for filename in sorted(os.listdir(mask_folder)):
 		training_mask_files.append(mask_folder + filename)
 
+for folder, mask_folder in zip(test_folders, test_mask_folders):
+	for filename in sorted(os.listdir(folder)):
+		test_files.append(folder + filename) 
+
+	for filename in sorted(os.listdir(mask_folder)):
+		test_mask_files.append(mask_folder + filename)
 
 checkpoint_path = args.model_checkpoint_folder
 
 # Set up model
-num_classes = 1
+num_classes = 3
 
 BACKBONE = args.model_type
 preprocess_input = sm.get_preprocessing(BACKBONE)
@@ -92,28 +95,29 @@ def read_frames_to_list(filename, x, is_mask=False):
 
 			frame = cv2.resize(frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
 			
-			if args.show_video:
-				cv2.imshow('Video', frame)
 
 			if is_mask:
 				frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-				
+			
+			if args.show_video:
+				cv2.imshow('Video', frame)
+
+			if is_mask:	
 				# convert single array into 4 arrays. This is necessary for training
-				sky = np.where(frame<=50, 255, 0).astype(np.uint8)
-				sea = np.where(frame>=220, 255, 0).astype(np.uint8)
-				boat = np.where(frame==198, 255, 0).astype(np.uint8)
+				sky = np.where(frame<=50, 1, 0).astype(np.uint8)
+				sea = np.where(frame>=220, 1, 0).astype(np.uint8)
+				boat = np.where(frame==198, 1, 0).astype(np.uint8)
 				# other = np.where(np.logical_and(mask_frame>90 , mask_frame<100), 1, 0).astype(np.uint8)
 
 				# stack 4 into one array
 				frame = np.dstack((sky, sea, boat))
-				cv2.imshow('label', frame)
 
 			x.append(frame)
 
 			pbar.update(1)
 		
 			if args.show_video:
-				if cv2.waitKey(30) == 27:
+				if cv2.waitKey(20) == 27:
 					vid.release()
 					cv2.destroyAllWindows()
 					pbar.close()
@@ -144,8 +148,6 @@ for filename, mask_filename in zip(test_files, test_mask_files):
 
 	assert len(test_frames) == len(test_masks), filename + " length not equal to " + mask_filename + " length"
 
-sys.exit()
-
 
 # convert lists to numpy arrays
 x_train, y_train = np.array(training_frames), np.array(training_masks)
@@ -158,28 +160,48 @@ x_val = preprocess_input(x_val)
 # save checkpoints while training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 												save_weights_only=True,
+												save_best_only=True,
+												monitor='val_loss',
+												mode='min',
 												verbose=1)
 
+# early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.05, patience=3)
 
 
 # create two datagen instances with the same arguments
 data_gen_args = dict(   rotation_range=20,
 						width_shift_range=0.2,
 						height_shift_range=0.2,
-						horizontal_flip=True)
+						horizontal_flip=True,
+						fill_mode='reflect',
+						dtype=np.uint8)
 
 
-image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
-mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
+image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args, channel_shift_range=50)
+mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args, channel_shift_range=0.00000000001)
 
 seed = 1
 train_X_generator = image_datagen.flow(
 	x_train,
     seed=seed)
-	
+
+
 train_Y_generator = mask_datagen.flow(
 	y_train, 
     seed=seed)
+
+# for image, mask in zip(train_X_generator, train_Y_generator):
+
+# 	for i in range(image.shape[0]):
+# 		cv2.imshow('image', image[i].astype(np.uint8))
+# 		cv2.imshow('mask', mask[i].astype(np.uint8))
+# 		if cv2.waitKey(1000) == 27:
+# 			cv2.destroyAllWindows()
+# 			break
+
+# 	if cv2.waitKey(1000) == 27:
+# 		cv2.destroyAllWindows()
+# 		break
 
 val_X_generator = image_datagen.flow(
 	x_val,
@@ -193,7 +215,7 @@ val_Y_generator = mask_datagen.flow(
 train_generator = zip(train_X_generator, train_Y_generator)
 validation_generator = zip(val_X_generator, val_Y_generator)
 
-model.fit(
+history = model.fit(
     x=train_generator,
 	validation_data=validation_generator,
 	validation_steps=50,
@@ -201,3 +223,6 @@ model.fit(
     epochs=50,
 	callbacks=[cp_callback] 
 )
+
+with open(checkpoint_path + 'history.pickle', 'wb') as f:
+	pickle.dump(history, f, pickle.HIGHEST_PROTOCOL)
