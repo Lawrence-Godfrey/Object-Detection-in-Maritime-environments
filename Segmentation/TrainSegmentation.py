@@ -222,6 +222,6 @@ history = model.fit(
 	validation_data=validation_generator,
 	validation_steps=50,
 	steps_per_epoch=300,
-	epochs=50,
+	epochs=6,
 	callbacks=[cp_callback, history_callback] 
 )
