@@ -12,7 +12,6 @@ import pickle
 
 #TODO Automatic end when plateau
 #TODO Try with grayscale input
-#TODO Save linux image
 
 parser = argparse.ArgumentParser(description='Train a segmentation model on a video dataset')
 
@@ -66,7 +65,7 @@ model = sm.Unet(BACKBONE, encoder_weights='imagenet', classes=num_classes)
 model.compile(
     'Adam',
     loss=sm.losses.bce_jaccard_loss,
-    metrics=[sm.metrics.iou_score],
+    metrics=[sm.metrics.iou_score, sm.metrics.fscore],
 )
 
 def read_frames_to_list(filename, x, is_mask=False):
@@ -159,11 +158,13 @@ x_val = preprocess_input(x_val)
 
 # save checkpoints while training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
-												save_weights_only=True,
+												save_weights_only=False,
 												save_best_only=True,
 												monitor='val_loss',
 												mode='min',
 												verbose=1)
+# Save history to csv file
+history_callback = tf.keras.callbacks.CSVLogger(checkpoint_path + 'history.csv', append=True)
 
 # early_stopping_callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss', min_delta=0.05, patience=3)
 
@@ -215,14 +216,12 @@ val_Y_generator = mask_datagen.flow(
 train_generator = zip(train_X_generator, train_Y_generator)
 validation_generator = zip(val_X_generator, val_Y_generator)
 
+
 history = model.fit(
-    x=train_generator,
+	x=train_generator,
 	validation_data=validation_generator,
 	validation_steps=50,
-    steps_per_epoch=1000,
-    epochs=50,
-	callbacks=[cp_callback] 
+	steps_per_epoch=300,
+	epochs=50,
+	callbacks=[cp_callback, history_callback] 
 )
-
-with open(checkpoint_path + 'history.pickle', 'wb') as f:
-	pickle.dump(history, f, pickle.HIGHEST_PROTOCOL)
