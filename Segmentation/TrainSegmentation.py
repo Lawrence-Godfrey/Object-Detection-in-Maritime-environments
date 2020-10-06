@@ -8,10 +8,7 @@ from tqdm import tqdm
 
 import tensorflow as tf
 import segmentation_models as sm
-import pickle
 
-#TODO Automatic end when plateau
-#TODO Try with grayscale input
 
 parser = argparse.ArgumentParser(description='Train a segmentation model on a video dataset')
 
@@ -24,7 +21,7 @@ parser.add_argument('-y', '--input_test_mask_folders',  type=str, metavar='', na
 parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='resnet18', help='The model backbone')
 parser.add_argument('-c', '--model_checkpoint_folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
 parser.add_argument('-s', '--show_video', 			   action='store_true', help='Whether or not to show the input and mask video while reading it in')
-
+parser.add_argument('-e', '--num_epochs', 				type=int, metavar='', default=10, help="Number of ephocs to train for")
 
 args = parser.parse_args()
 
@@ -55,7 +52,7 @@ for folder, mask_folder in zip(test_folders, test_mask_folders):
 checkpoint_path = args.model_checkpoint_folder
 
 # Set up model
-num_classes = 3
+num_classes = 1
 
 BACKBONE = args.model_type
 preprocess_input = sm.get_preprocessing(BACKBONE)
@@ -65,8 +62,12 @@ model = sm.Unet(BACKBONE, encoder_weights='imagenet', classes=num_classes)
 model.compile(
     'Adam',
     loss=sm.losses.bce_jaccard_loss,
-    metrics=[sm.metrics.iou_score, sm.metrics.fscore],
+    metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()],
 )
+
+# Video Properties
+frame_size = 320
+frame_rate = 2
 
 def read_frames_to_list(filename, x, is_mask=False):
 	print('Reading ' + filename)
@@ -77,53 +78,62 @@ def read_frames_to_list(filename, x, is_mask=False):
 	if not vid.isOpened():
 		sys.exit('Video File, ' + filename + ', couldn\'t be opened')
 
-
+	# Get the videos frame per second value
+	vid_fps = vid.get(cv2.CAP_PROP_FPS)
+	print(vid_fps)
 	# destination dimensions of videos
-	xSize = 320
-	ySize = 320
+	xSize = frame_size
+	ySize = frame_size
 
 	# Progress Bar 
 	length = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-	pbar = tqdm(total=length)
+	pbar = tqdm(total=length//(vid_fps//frame_rate))
 
+	frame_counter = 0
 	while vid.isOpened():
-
-		available, frame = vid.read()
-
-		if available:
-
-			frame = cv2.resize(frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
-			
-
-			if is_mask:
-				frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-			
-			if args.show_video:
-				cv2.imshow('Video', frame)
-
-			if is_mask:	
-				# convert single array into 4 arrays. This is necessary for training
-				sky = np.where(frame<=50, 1, 0).astype(np.uint8)
-				sea = np.where(frame>=220, 1, 0).astype(np.uint8)
-				boat = np.where(frame==198, 1, 0).astype(np.uint8)
-				# other = np.where(np.logical_and(mask_frame>90 , mask_frame<100), 1, 0).astype(np.uint8)
-
-				# stack 4 into one array
-				frame = np.dstack((sky, sea, boat))
-
-			x.append(frame)
-
-			pbar.update(1)
+		# skip a certain number of frames, essentially making the frame rate 2 fps
+		if frame_counter > vid_fps//frame_rate:
+			frame_counter = 0
 		
-			if args.show_video:
-				if cv2.waitKey(20) == 27:
-					vid.release()
-					cv2.destroyAllWindows()
-					pbar.close()
-					sys.exit('Video closed')
+			available, frame = vid.read()
 
+			if available:
+
+				frame = cv2.resize(frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
+
+				if args.show_video:
+					cv2.imshow('Video', frame)				
+
+				if is_mask:	
+					frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+					# convert single array into 4 arrays. This is necessary for training
+					# sky = np.where(frame<=50, 1, 0).astype(np.uint8)
+					frame = np.where(frame>=220, 1, 0).astype(np.uint8)
+					# boat = np.where(frame==198, 1, 0).astype(np.uint8)
+					# other = np.where(np.logical_and(mask_frame>90 , mask_frame<100), 1, 0).astype(np.uint8)
+
+					# stack 4 into one array
+					# frame = np.dstack((sky, sea, boat))
+
+				x.append(frame)
+
+				pbar.update(1)
+			
+				if args.show_video:
+					if cv2.waitKey(1) == 27:
+						vid.release()
+						cv2.destroyAllWindows()
+						pbar.close()
+						sys.exit('Video closed')
+
+			else:
+				break
+		
+		# skip frame using grab()
 		else:
-			break
+			_ = vid.grab()
+			frame_counter += 1 
+
 
 	pbar.close()
 	vid.release()
@@ -152,6 +162,22 @@ for filename, mask_filename in zip(test_files, test_mask_files):
 x_train, y_train = np.array(training_frames), np.array(training_masks)
 x_val, y_val = np.array(test_frames), np.array(test_masks)
 
+y_train, y_val = np.reshape(y_train, (*y_train.shape, num_classes)), np.reshape(y_val, (*y_val.shape, num_classes))
+
+print(x_train.shape)
+print(y_train.shape)
+print(x_val.shape)
+print(y_val.shape)
+
+# key = 0
+# for i in range(x_train.shape[0]):
+# 	for j in range(3):
+# 		cv2.imshow('input', x_train[i,:,:,j])
+# 		key = cv2.waitKey(500)
+# 	if key == 27:
+# 		cv2.destroyAllWindows()
+# 		break
+
 # preprocess input
 x_train = preprocess_input(x_train)
 x_val = preprocess_input(x_val)
@@ -160,8 +186,8 @@ x_val = preprocess_input(x_val)
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 												save_weights_only=False,
 												save_best_only=True,
-												monitor='val_loss',
-												mode='min',
+												monitor='f1-score',
+												mode='max',
 												verbose=1)
 # Save history to csv file
 history_callback = tf.keras.callbacks.CSVLogger(checkpoint_path + 'history.csv', append=True)
@@ -222,6 +248,6 @@ history = model.fit(
 	validation_data=validation_generator,
 	validation_steps=50,
 	steps_per_epoch=300,
-	epochs=6,
+	epochs=args.num_epochs,
 	callbacks=[cp_callback, history_callback] 
 )
