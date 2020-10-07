@@ -60,7 +60,7 @@ frame_window = 7
 # Optical Flow Parameters
 pyr_scale = 0.5
 levels = 3
-winsize = 6
+winsize = 4
 iterations = 1
 poly_n = 5
 poly_sigma = 2
@@ -84,7 +84,7 @@ frame_size = 320
 frame_rate = 7
 
 
-def read_frames_to_list(filename, x, is_mask=False):
+def read_frames_to_list(filename, x, is_mask=False, convert_to_flow=False):
 	print('Reading ' + filename)
 
 	# read in file
@@ -95,17 +95,18 @@ def read_frames_to_list(filename, x, is_mask=False):
 
 	# Get the videos frame per second value
 	vid_fps = vid.get(cv2.CAP_PROP_FPS)
-	print(vid_fps)
 	# destination dimensions of videos
 	xSize = frame_size
 	ySize = frame_size
 
 	# Progress Bar 
 	length = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
-	pbar = tqdm(total=length//(vid_fps//frame_rate))
+	pbar = tqdm(total=length)
 
 	frame_counter = 0
+	previous_frame = None
 	while vid.isOpened():
+
 		# skip a certain number of frames, essentially making the frame rate 2 fps
 		if frame_counter > vid_fps//frame_rate:
 			frame_counter = 0
@@ -131,6 +132,15 @@ def read_frames_to_list(filename, x, is_mask=False):
 					# stack 4 into one array
 					# frame = np.dstack((sky, sea, boat))
 
+				if convert_to_flow:
+					previous_frame = cv2.resize(previous_frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
+					previous_frame = cv2.cvtColor(previous_frame, cv2.COLOR_BGR2GRAY)
+					flow = cv2.calcOpticalFlowFarneback(previous_frame, frame, None, pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
+					
+					mag, ang = cv2.cartToPolar(flow[:,:,0], flow[:,:,1])
+					frame = cv2.normalize(mag,None,0,255,cv2.NORM_MINMAX).astype(np.uint8)
+
+
 				x.append(frame)
 
 				pbar.update(1)
@@ -147,8 +157,9 @@ def read_frames_to_list(filename, x, is_mask=False):
 		
 		# skip frame using grab()
 		else:
-			_ = vid.grab()
+			_, previous_frame = vid.read()
 			frame_counter += 1 
+			pbar.update(1)
 
 
 	pbar.close()
@@ -162,13 +173,13 @@ training_frames, training_masks = [], []
 test_frames, test_masks = [], []
 
 for filename, mask_filename in zip(training_files, training_mask_files):
-	read_frames_to_list(filename, training_frames)
+	read_frames_to_list(filename, training_frames, convert_to_flow=True)
 	read_frames_to_list(mask_filename, training_masks, is_mask=True)
 
 	assert len(training_frames) == len(training_masks), filename + " length not equal to " + mask_filename + " length"
 
 for filename, mask_filename in zip(test_files, test_mask_files):
-	read_frames_to_list(filename, test_frames)
+	read_frames_to_list(filename, test_frames, convert_to_flow=True)
 	read_frames_to_list(mask_filename, test_masks, is_mask=True)
 
 	assert len(test_frames) == len(test_masks), filename + " length not equal to " + mask_filename + " length"
@@ -189,15 +200,7 @@ training_batches, testing_batches = [], []
 for i in range(half_window, x_train.shape[0] - half_window - 1, half_window + 1):
 	temp = np.zeros((frame_size, frame_size, frame_window), dtype=np.uint8)
 	for j in range(0, frame_window, 1):
-		prvs = x_train[i+j-half_window, :, :]
-		next = x_train[i+j-half_window+1, :, :]
-		flow = cv2.calcOpticalFlowFarneback(prvs, next, None, pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
-		
-		mag = np.sqrt(np.power(flow[...,0], 2), np.power(flow[...,1], 2))
-		mag = mag / np.max(mag)
-		mag = mag*255
-
-		temp[...,j] = mag
+		temp[:,:,j] = x_train[i+j-half_window, :, :]
 
 	training_batches.append(temp)
 	y_train.append(training_masks[i])
@@ -206,15 +209,7 @@ for i in range(half_window, x_train.shape[0] - half_window - 1, half_window + 1)
 for i in range(half_window, x_val.shape[0] - half_window - 1, half_window + 1):
 	temp = np.zeros((frame_size, frame_size, frame_window), dtype=np.uint8)
 	for j in range(0, frame_window, 1):
-		prvs = x_train[i+j-half_window, :, :]
-		next = x_train[i+j-half_window+1, :, :]
-		flow = cv2.calcOpticalFlowFarneback(prvs, next, None, pyr_scale, levels, winsize, iterations, poly_n, poly_sigma, flags=cv2.OPTFLOW_FARNEBACK_GAUSSIAN)
-		
-		mag = np.sqrt(np.power(flow[...,0], 2), np.power(flow[...,1], 2))
-		mag = mag / np.max(mag)
-		mag = mag*255
-
-		temp[...,j] = mag
+		temp[:,:,j] = x_val[i+j-half_window, :, :]
 
 	testing_batches.append(temp)
 	y_val.append(test_masks[i])
@@ -226,15 +221,15 @@ y_train, y_val = np.array(y_train), np.array(y_val)
 y_train, y_val = np.reshape(y_train, (*y_train.shape, num_classes)), np.reshape(y_val, (*y_val.shape, num_classes))
 
 
-key = 0
-for i in range(x_train.shape[0]):
-	cv2.imshow('mask', y_train[i].astype(np.uint8)*255)
-	for j in range(frame_window):
-		cv2.imshow('flow', x_train[i,:,:,j])
-		key = cv2.waitKey(500)
-	if key == 27:
-		cv2.destroyAllWindows()
-		break
+# key = 0
+# for i in range(x_train.shape[0]):
+# 	cv2.imshow('mask', y_train[i].astype(np.uint8)*255)
+# 	for j in range(frame_window):
+# 		cv2.imshow('flow', x_train[i,:,:,j])
+# 		key = cv2.waitKey(500)
+# 	if key == 27:
+# 		cv2.destroyAllWindows()
+# 		break
 
 print(x_train.shape)
 print(y_train.shape)
@@ -249,7 +244,7 @@ x_val = preprocess_input(x_val)
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 												save_weights_only=False,
 												save_best_only=True,
-												monitor='f1-score',
+												monitor='val_f1-score',
 												mode='max',
 												verbose=1)
 # Save history to csv file
