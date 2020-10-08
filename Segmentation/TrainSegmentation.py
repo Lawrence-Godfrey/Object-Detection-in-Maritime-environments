@@ -21,6 +21,7 @@ parser.add_argument('-y', '--input_test_mask_folders',  type=str, metavar='', na
 parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='resnet18', help='The model backbone')
 parser.add_argument('-c', '--model_checkpoint_folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
 parser.add_argument('-s', '--show_video', 			   action='store_true', help='Whether or not to show the input and mask video while reading it in')
+parser.add_argument('-g', '--convert_to_greyscale',    action='store_true', help='Whether or not to convert input frames to greyscale')
 parser.add_argument('-e', '--num_epochs', 				type=int, metavar='', default=10, help="Number of ephocs to train for")
 
 args = parser.parse_args()
@@ -57,7 +58,10 @@ num_classes = 1
 BACKBONE = args.model_type
 preprocess_input = sm.get_preprocessing(BACKBONE)
 
-model = sm.Unet(BACKBONE, encoder_weights='imagenet', classes=num_classes)
+if args.convert_to_greyscale:
+	model = sm.Unet(BACKBONE, encoder_weights=None, input_shape = (None, None, 1), classes=num_classes)
+else:
+	model = sm.Unet(BACKBONE, encoder_weights='imagenet', classes=num_classes)
 
 model.compile(
     'Adam',
@@ -65,11 +69,20 @@ model.compile(
     metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()],
 )
 
+def preprocess_greyscale(x):
+	x = x.astype(np.float32)
+	x /= 255.
+	# subtract mean 
+	x -= 0.4867
+	# scale by standard deviation
+	x /= 0.2153
+	return x
+
 # Video Properties
 frame_size = 320
 frame_rate = 2
 
-def read_frames_to_list(filename, x, is_mask=False):
+def read_frames_to_list(filename, x, is_mask=False, convert_to_greyscale=False):
 	print('Reading ' + filename)
 
 	# read in file
@@ -104,8 +117,10 @@ def read_frames_to_list(filename, x, is_mask=False):
 				if args.show_video:
 					cv2.imshow('Video', frame)				
 
-				if is_mask:	
+				if convert_to_greyscale or is_mask:
 					frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+				
+				if is_mask:	
 					# convert single array into 4 arrays. This is necessary for training
 					# sky = np.where(frame<=50, 1, 0).astype(np.uint8)
 					frame = np.where(frame>=220, 1, 0).astype(np.uint8)
@@ -146,21 +161,23 @@ training_frames, training_masks = [], []
 test_frames, test_masks = [], []
 
 for filename, mask_filename in zip(training_files, training_mask_files):
-	read_frames_to_list(filename, training_frames)
+	read_frames_to_list(filename, training_frames, convert_to_greyscale=args.convert_to_greyscale)
 	read_frames_to_list(mask_filename, training_masks, is_mask=True)
 
 	assert len(training_frames) == len(training_masks), filename + " length not equal to " + mask_filename + " length"
 
 for filename, mask_filename in zip(test_files, test_mask_files):
-	read_frames_to_list(filename, test_frames)
+	read_frames_to_list(filename, test_frames, convert_to_greyscale=args.convert_to_greyscale)
 	read_frames_to_list(mask_filename, test_masks, is_mask=True)
 
 	assert len(test_frames) == len(test_masks), filename + " length not equal to " + mask_filename + " length"
 
-
 # convert lists to numpy arrays
 x_train, y_train = np.array(training_frames), np.array(training_masks)
 x_val, y_val = np.array(test_frames), np.array(test_masks)
+
+if args.convert_to_greyscale:
+	x_train, x_val = np.reshape(x_train, (*x_train.shape[0:3], 1)), np.reshape(x_val, (*x_val.shape[0:3], 1))
 
 y_train, y_val = np.reshape(y_train, (*y_train.shape, num_classes)), np.reshape(y_val, (*y_val.shape, num_classes))
 
@@ -179,14 +196,18 @@ print(y_val.shape)
 # 		break
 
 # preprocess input
-x_train = preprocess_input(x_train)
-x_val = preprocess_input(x_val)
+if args.convert_to_greyscale:
+	x_train = preprocess_greyscale(x_train)
+	x_val = preprocess_greyscale(x_val)
+else:
+	x_train = preprocess_input(x_train)
+	x_val = preprocess_input(x_val)
 
 # save checkpoints while training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
 												save_weights_only=False,
 												save_best_only=True,
-												monitor='f1-score',
+												monitor='val_f1-score',
 												mode='max',
 												verbose=1)
 # Save history to csv file
@@ -200,8 +221,7 @@ data_gen_args = dict(   rotation_range=20,
 						width_shift_range=0.2,
 						height_shift_range=0.2,
 						horizontal_flip=True,
-						fill_mode='reflect',
-						dtype=np.uint8)
+						fill_mode='reflect',)
 
 
 image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args, channel_shift_range=50)
