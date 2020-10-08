@@ -81,9 +81,9 @@ def preprocess_greyscale(x):
 	x = x.astype(np.float32)
 	x /= 255.
 	# subtract mean 
-	x -= 0.4867
+	x -= 0.5184
 	# scale by standard deviation
-	x /= 0.2153
+	x /= 0.2228
 	return x
 
 # Video Properties
@@ -209,10 +209,10 @@ for i in range(half_window, x_train.shape[0] - half_window - 1, half_window + 1)
 	for j in range(0, frame_window, 1):
 		frame = x_train[i+j-half_window, :, :]
 		flow = training_flow_images[i+j-half_window]
-		combined = frame + flow
-		combined = np.where(combined>255, 255, combined)
+		combined = frame.astype(np.float32) + flow.astype(np.float32)
+		# combined = np.where(combined>255, 255, combined)
 
-		temp[...,j] = combined.astype(np.float32)
+		temp[...,j] = combined
 
 
 	training_batches.append(temp)
@@ -225,10 +225,10 @@ for i in range(half_window, x_val.shape[0] - half_window - 1, half_window + 1):
 		frame = x_val[i+j-half_window, :, :]
 		flow = test_flow_images[i+j-half_window]
 		
-		combined = frame + flow
-		combined = np.where(combined>255, 255, combined)
+		combined = frame.astype(np.float32) + flow.astype(np.float32)
+		# combined = np.where(combined>255, 255, combined)
 
-		temp[...,j] = combined.astype(np.float32)
+		temp[...,j] = combined
 
 	testing_batches.append(temp)
 	y_val.append(test_masks[i])
@@ -240,15 +240,15 @@ y_train, y_val = np.array(y_train), np.array(y_val)
 y_train, y_val = np.reshape(y_train, (*y_train.shape, num_classes)), np.reshape(y_val, (*y_val.shape, num_classes))
 
 
-key = 0
-for i in range(x_train.shape[0]):
-	cv2.imshow('mask', y_train[i].astype(np.uint8)*255)
-	for j in range(frame_window):
-		cv2.imshow('flow', x_train[i,:,:,j])
-		key = cv2.waitKey(500)
-	if key == 27:
-		cv2.destroyAllWindows()
-		break
+# key = 0
+# for i in range(x_train.shape[0]):
+# 	cv2.imshow('mask', y_train[i].astype(np.uint8)*255)
+# 	for j in range(frame_window):
+# 		cv2.imshow('flow', (x_train[i,:,:,j]/2).astype(np.uint8))
+# 		key = cv2.waitKey(500)
+# 	if key == 27:
+# 		cv2.destroyAllWindows()
+# 		break
 
 print(x_train.shape)
 print(y_train.shape)
