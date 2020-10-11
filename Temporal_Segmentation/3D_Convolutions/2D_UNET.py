@@ -1,13 +1,16 @@
-import cv2
+import tensorflow as tf
 import numpy as np
+import cv2
 
 import sys
 import argparse
 import os
 from tqdm import tqdm 
 
-import tensorflow as tf
+import models
+
 import segmentation_models as sm
+
 
 parser = argparse.ArgumentParser(description='Train a segmentation model on a video dataset')
 
@@ -19,8 +22,8 @@ parser.add_argument('-y', '--input_test_mask_folders',  type=str, metavar='', na
 
 parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='resnet18', help='The model backbone')
 parser.add_argument('-c', '--model_checkpoint_folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
-
 parser.add_argument('-s', '--show_video', 			   action='store_true', help='Whether or not to show the input and mask video while reading it in')
+parser.add_argument('-g', '--convert_to_greyscale',    action='store_true', help='Whether or not to convert input frames to greyscale')
 parser.add_argument('-e', '--num_epochs', 				type=int, metavar='', default=10, help="Number of ephocs to train for")
 
 args = parser.parse_args()
@@ -51,28 +54,18 @@ for folder, mask_folder in zip(test_folders, test_mask_folders):
 
 checkpoint_path = args.model_checkpoint_folder
 
-# Set up model
+
+
+
 num_classes = 1
-
-# number of frames to take as input to the model
-frame_window = 7
-
-BACKBONE = args.model_type
-preprocess_input = sm.get_preprocessing(BACKBONE)
-
-model = sm.Unet(BACKBONE, encoder_weights=None, input_shape = (None, None, frame_window), classes=num_classes)
-
-model.compile(
-    'Adam',
-    loss=sm.losses.bce_jaccard_loss,
-    metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()],
-)
-
-# model.summary()
-
-# Video Properties
 frame_size = 320
-frame_rate = 7
+input_shape = (frame_size, frame_size, 1 if args.convert_to_greyscale else 3)
+
+model = models.Unet2D(input_shape, n_filters=64, dropout=0.05, batchnorm=True)
+model.compile(optimizer=tf.keras.optimizers.Adam(), loss=sm.losses.bce_jaccard_loss, metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()])
+model.summary()
+
+
 
 def preprocess_greyscale(x):
 	x = x.astype(np.float32)
@@ -83,7 +76,24 @@ def preprocess_greyscale(x):
 	x /= 0.2153
 	return x
 
-def read_frames_to_list(filename, x, is_mask=False):
+def preprocessRGB(x):
+	x = x.astype(np.float32)
+	x /= 255.
+	# subtract mean 
+	x[...,0] -= (124.06926430766978/255)
+	x[...,1] -= (125.27865037690282/255)
+	x[...,2] -= (121.89723042758344/255)
+	# scale by standard deviation
+	x[...,0] /= (60.265831215036414/255)
+	x[...,1] /= (55.207144377884056/255)
+	x[...,2] /= (54.97566974981287/255)
+	return x
+
+# Video Properties
+frame_size = 320
+frame_rate = 2
+
+def read_frames_to_list(filename, x, is_mask=False, convert_to_greyscale=False):
 	print('Reading ' + filename)
 
 	# read in file
@@ -114,11 +124,12 @@ def read_frames_to_list(filename, x, is_mask=False):
 			if available:
 
 				frame = cv2.resize(frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
-				
-				if args.show_video:
-					cv2.imshow('Video', frame)
 
-				frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+				if args.show_video:
+					cv2.imshow('Video', frame)				
+
+				if convert_to_greyscale or is_mask:
+					frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 				
 				if is_mask:	
 					# convert single array into 4 arrays. This is necessary for training
@@ -161,72 +172,46 @@ training_frames, training_masks = [], []
 test_frames, test_masks = [], []
 
 for filename, mask_filename in zip(training_files, training_mask_files):
-	read_frames_to_list(filename, training_frames)
+	read_frames_to_list(filename, training_frames, convert_to_greyscale=args.convert_to_greyscale)
 	read_frames_to_list(mask_filename, training_masks, is_mask=True)
 
 	assert len(training_frames) == len(training_masks), filename + " length not equal to " + mask_filename + " length"
 
 for filename, mask_filename in zip(test_files, test_mask_files):
-	read_frames_to_list(filename, test_frames)
+	read_frames_to_list(filename, test_frames, convert_to_greyscale=args.convert_to_greyscale)
 	read_frames_to_list(mask_filename, test_masks, is_mask=True)
 
 	assert len(test_frames) == len(test_masks), filename + " length not equal to " + mask_filename + " length"
 
-
-half_window = int(np.floor(frame_window/2))
-
 # convert lists to numpy arrays
-x_train = np.array(training_frames)
-x_val = np.array(test_frames)
+x_train, y_train = np.array(training_frames), np.array(training_masks)
+x_val, y_val = np.array(test_frames), np.array(test_masks)
 
-y_train, y_val = [], []
+if args.convert_to_greyscale:
+	x_train, x_val = np.reshape(x_train, (*x_train.shape[0:3], 1)), np.reshape(x_val, (*x_val.shape[0:3], 1))
 
-
-# batches of 7 frames each, for training on temporal data
-training_batches, testing_batches = [], []
-
-for i in range(half_window, x_train.shape[0] - half_window, half_window + 1):
-	temp = np.zeros((frame_size, frame_size, frame_window), dtype=np.uint8)
-	for j in range(0, frame_window, 1):
-		temp[:,:,j] = x_train[i+j-half_window, :, :]
-		
-	training_batches.append(temp)
-	y_train.append(training_masks[i])
-
-
-for i in range(half_window, x_val.shape[0] - half_window, half_window + 1):
-	temp = np.zeros((frame_size, frame_size, frame_window), dtype=np.uint8)
-	for j in range(0, frame_window, 1):
-		temp[:,:,j] = x_val[i+j-half_window, :, :]
-
-	testing_batches.append(temp)
-	y_val.append(test_masks[i])
-
-# convert lists to numpy arrays
-x_train, x_val = np.array(training_batches), np.array(testing_batches)
-
-y_train, y_val = np.array(y_train), np.array(y_val)
 y_train, y_val = np.reshape(y_train, (*y_train.shape, num_classes)), np.reshape(y_val, (*y_val.shape, num_classes))
 
-
+print(x_train.shape)
+print(y_train.shape)
+print(x_val.shape)
+print(y_val.shape)
 # key = 0
 # for i in range(x_train.shape[0]):
-# 	cv2.imshow('mask', y_train[i].astype(np.uint8)*255)
-# 	for j in range(frame_window):
+# 	for j in range(3):
 # 		cv2.imshow('input', x_train[i,:,:,j])
 # 		key = cv2.waitKey(500)
 # 	if key == 27:
 # 		cv2.destroyAllWindows()
 # 		break
 
-print(x_train.shape)
-print(y_train.shape)
-print(x_val.shape)
-print(y_val.shape)
-
 # preprocess input
-x_train = preprocess_input(x_train)
-x_val = preprocess_input(x_val)
+if args.convert_to_greyscale:
+	x_train = preprocess_greyscale(x_train)
+	x_val = preprocess_greyscale(x_val)
+else:
+	x_train = preprocessRGB(x_train)
+	x_val = preprocessRGB(x_val)
 
 # save checkpoints while training
 cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=checkpoint_path,
@@ -242,15 +227,15 @@ history_callback = tf.keras.callbacks.CSVLogger(checkpoint_path + 'history.csv',
 
 
 # create two datagen instances with the same arguments
-data_gen_args = dict( 	width_shift_range=0.2,
+data_gen_args = dict(   rotation_range=20,
+						width_shift_range=0.2,
 						height_shift_range=0.2,
 						horizontal_flip=True,
-						fill_mode='reflect',
-						dtype=np.uint8)
+						fill_mode='reflect',)
 
 
-image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args, channel_shift_range=50)
-mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args, channel_shift_range=0.00000000001)
+image_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args) #, channel_shift_range=50)
+mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args) #, channel_shift_range=0.00000000001)
 
 seed = 1
 train_X_generator = image_datagen.flow(
@@ -262,25 +247,18 @@ train_Y_generator = mask_datagen.flow(
 	y_train, 
     seed=seed)
 
-# Visualize the batches with augmentation
 # for image, mask in zip(train_X_generator, train_Y_generator):
 
 # 	for i in range(image.shape[0]):
-# 		for j in range(frame_window):
-# 			cv2.imshow('image', image[i,:,:,j].astype(np.uint8))
-# 			cv2.imshow('mask', mask[i].astype(np.uint8)*255)
+# 		cv2.imshow('image', image[i].astype(np.uint8))
+# 		cv2.imshow('mask', mask[i].astype(np.uint8))
+# 		if cv2.waitKey(1000) == 27:
+# 			cv2.destroyAllWindows()
+# 			break
 
-# 			key = cv2.waitKey(1000)
-
-# 			if key == 27:
-# 				cv2.destroyAllWindows()
-# 				break
-# 		if key == 27:
-# 				cv2.destroyAllWindows()
-# 				break
-# 	if key == 27:
-# 				cv2.destroyAllWindows()
-# 				break
+# 	if cv2.waitKey(1000) == 27:
+# 		cv2.destroyAllWindows()
+# 		break
 
 val_X_generator = image_datagen.flow(
 	x_val,
