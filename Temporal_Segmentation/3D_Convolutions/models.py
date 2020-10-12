@@ -160,6 +160,6 @@ def Unet3D(input_shape, n_filters = 16, dropout = 0.1, batchnorm=True):
 	c10 = conv3d_block(u10, n_filters * 1, batchnorm=batchnorm)
 
 	outputs = Conv3D(1, (1, 1, 1), activation='sigmoid')(c10)
-	print(outputs.shape)
-	model = Model(inputs=[input_layer], outputs=[outputs])
+	print(outputs[..., 0].shape)
+	model = Model(inputs=[input_layer], outputs=[outputs[..., 0]])
 	return model
