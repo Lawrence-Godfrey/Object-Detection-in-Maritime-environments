@@ -20,11 +20,12 @@ parser.add_argument('-m', '--input_mask_folders',       type=str, metavar='', na
 parser.add_argument('-t', '--input_test_video_folders', type=str, metavar='', nargs='+', required=True, help='The path to the folder containing the videos to test on')
 parser.add_argument('-y', '--input_test_mask_folders',  type=str, metavar='', nargs='+', required=True, help='The path to the folder containing the masked videos to test on')
 
-parser.add_argument('-b', '--model_type',              type=str, metavar='',   default='resnet18', help='The model backbone')
 parser.add_argument('-c', '--model_checkpoint_folder', type=str, metavar='',   default = "./checkpoints/",    help='The folder to save model checkpoints')
 
 parser.add_argument('-s', '--show_video', 			   action='store_true', help='Whether or not to show the input and mask video while reading it in')
 parser.add_argument('-e', '--num_epochs', 				type=int, metavar='', default=10, help="Number of ephocs to train for")
+parser.add_argument('--batch_size', 				type=int, metavar='', default=32, help="Batch Size")
+parser.add_argument('--frame_size', 				type=int, metavar='', default=320, help="Frame Size")
 
 args = parser.parse_args()
 
@@ -54,11 +55,11 @@ for folder, mask_folder in zip(test_folders, test_mask_folders):
 
 checkpoint_path = args.model_checkpoint_folder
 
-
+batch_size = args.batch_size
 
 num_classes = 1
 frame_window = 8
-frame_size = 320
+frame_size = args.frame_size
 input_shape = (frame_size, frame_size, frame_window, 1) # Width x Height x Depth x Channels
 
 model = models.Unet3D(input_shape, n_filters=64, dropout=0.05)
@@ -108,6 +109,9 @@ def read_frames_to_list(filename, x, is_mask=False):
 			available, frame = vid.read()
 
 			if available:
+				# min_length = min(frame.shape[0], frame.shape[1])
+
+				# frame = frame[:min_length, :min_length]
 
 				frame = cv2.resize(frame, (xSize, ySize), interpolation=cv2.INTER_AREA)
 				
@@ -247,11 +251,13 @@ mask_datagen = tf.keras.preprocessing.image.ImageDataGenerator(**data_gen_args)
 seed = 1
 train_X_generator = image_datagen.flow(
 	x_train,
+	batch_size=batch_size,
     seed=seed)
 
 
 train_Y_generator = mask_datagen.flow(
 	y_train, 
+	batch_size=batch_size,
     seed=seed)
 
 # Visualize the batches with augmentation
@@ -277,10 +283,12 @@ train_Y_generator = mask_datagen.flow(
 
 val_X_generator = image_datagen.flow(
 	x_val,
+	batch_size=batch_size,
     seed=seed)
 
 val_Y_generator = mask_datagen.flow(
 	y_val, 
+	batch_size=batch_size,
     seed=seed)
 
 # combine generators into one which yields image and masks
