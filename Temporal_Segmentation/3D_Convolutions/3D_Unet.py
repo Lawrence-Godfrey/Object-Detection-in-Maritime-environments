@@ -66,7 +66,7 @@ frame_window = 4
 frame_size = args.frame_size
 input_shape = (frame_size, frame_size, frame_window, 1) # Width x Height x Depth x Channels
 
-model = models.Unet3D(input_shape, n_filters=32, dropout=0.05)
+model = models.Unet3D_single_out(input_shape, n_filters=64, dropout=0.05)
 model.compile(optimizer=tf.keras.optimizers.Adam(), loss=sm.losses.bce_jaccard_loss, metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()])
 model.summary()
 
@@ -182,7 +182,7 @@ for i in range(half_window, len(training_frames) - half_window, half_window + 1)
 	mask_batch = np.zeros((frame_size, frame_size, frame_window), dtype=np.float32)
 	for j in range(0, frame_window, 1):
 		image_batch[:,:,j] = training_frames[i+j-half_window]
-		mask_batch[:,:,j] = training_masks[i+j-half_window]
+	mask_batch[:,:,j] = training_masks[i]
 		
 	x_train.append(image_batch)
 	y_train.append(mask_batch)
@@ -195,7 +195,7 @@ for i in range(half_window, len(test_frames) - half_window, half_window + 1):
 	mask_batch = np.zeros((frame_size, frame_size, frame_window), dtype=np.float32)
 	for j in range(0, frame_window, 1):
 		image_batch[:,:,j] = test_frames[i+j-half_window]
-		mask_batch[:,:,j] = test_masks[i+j-half_window]
+	mask_batch[:,:,j] = test_masks[i]
 
 	x_val.append(image_batch)
 	y_val.append(mask_batch)
