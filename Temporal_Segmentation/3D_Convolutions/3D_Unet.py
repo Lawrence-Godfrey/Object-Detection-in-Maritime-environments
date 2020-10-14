@@ -11,6 +11,10 @@ import models
 
 import segmentation_models as sm
 
+physical_devices = tf.config.list_physical_devices('GPU')
+
+for gpu in physical_devices:
+  tf.config.experimental.set_memory_growth(gpu, True)
 
 parser = argparse.ArgumentParser(description='Train a segmentation model on a video dataset')
 
@@ -58,11 +62,11 @@ checkpoint_path = args.model_checkpoint_folder
 batch_size = args.batch_size
 
 num_classes = 1
-frame_window = 8
+frame_window = 4
 frame_size = args.frame_size
 input_shape = (frame_size, frame_size, frame_window, 1) # Width x Height x Depth x Channels
 
-model = models.Unet3D(input_shape, n_filters=64, dropout=0.05)
+model = models.Unet3D(input_shape, n_filters=32, dropout=0.05)
 model.compile(optimizer=tf.keras.optimizers.Adam(), loss=sm.losses.bce_jaccard_loss, metrics=[sm.metrics.IOUScore(), sm.metrics.FScore()])
 model.summary()
 
@@ -302,5 +306,6 @@ history = model.fit(
 	validation_steps=50,
 	steps_per_epoch=300,
 	epochs=args.num_epochs,
-	callbacks=[cp_callback, history_callback] 
+	callbacks=[cp_callback, history_callback], 
+	max_queue_size=1
 )
