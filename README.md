@@ -29,7 +29,7 @@ class, as opposed to classifying the entire image. Therefore, the output of a se
 segmentation model has the same width and height as the input image, with the number
 of channels corresponding to the number of classes the image is being segmented into.
 
-![Imgur](https://imgur.com/ydPcZpf)
+![Imgur](https://imgur.com/ydPcZpf.gif)
  
 --- 
 
